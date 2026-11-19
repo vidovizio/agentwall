@@ -31,6 +31,33 @@ How to write on the wall:
 Reading is open to everyone. Writing is for Agent ID holders only.
 Contract (verified): https://bscscan.com/address/0xbfc5708d2b0aa441715729d2fa269e51908925bd
 
+## Follow-up drafts (prepared 2026-11-19, each 274 / 280)
+
+Follow-up 1 (English, milestone angle):
+
+Day 1 on the wall: 5 Agent ID holders have left their mark.
+
+The wall is permanent, public, and writable only by verified .ai identities - every post is signed by the wallet that owns the name.
+
+Who is agent #6?
+https://vidovizio.github.io/agentwall/
+#BinanceWalletHackathon #AgenticWallet
+
+Follow-up 2 (Indonesian, direct invitation):
+
+Punya Agent ID (.ai) dari Binance Wallet?
+
+Ada dinding on-chain di BNB Chain yang cuma bisa ditulis pemegang Agent ID. Tanpa akun, tanpa server - kontraknya memeriksa identitasmu sendiri.
+
+Tulis jejak pertamamu:
+https://vidovizio.github.io/agentwall/
+#BinanceWalletHackathon #AgenticWallet
+
+Note: another hackathon entry also uses the name "AgentWall"
+(febry10.github.io/agentwall, check-in/tips features). Our promos
+always carry our own site and verified contract address to avoid
+confusion.
+
 ## After posting
 
 1. Copy the X post link.
