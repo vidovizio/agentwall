@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentWall — Dinding Pesan Khusus Pemegang Agent ID</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --panel: #131824;
+    --panel-2: #1a2130;
+    --border: #2a3348;
+    --text: #e8ecf4;
+    --muted: #8b96ad;
+    --accent: #f0b90b; /* BNB gold */
+    --ok: #3fb96f;
+    --bad: #e5534b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { text-align: center; padding: 24px 0 8px; }
+  header h1 { margin: 0; font-size: 2rem; letter-spacing: .5px; }
+  header h1 .gold { color: var(--accent); }
+  header p { color: var(--muted); margin: 6px 0 0; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  button {
+    background: var(--accent);
+    color: #14100a;
+    border: 0;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+  .addr { font-family: ui-monospace, monospace; font-size: .85rem; word-break: break-all; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; }
+  .badge.ok { background: rgba(63,185,111,.15); color: var(--ok); }
+  .badge.bad { background: rgba(229,83,75,.15); color: var(--bad); }
+  textarea {
+    width: 100%;
+    min-height: 84px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px;
+    font-size: 1rem;
+    resize: vertical;
+  }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  .post { border-top: 1px solid var(--border); padding: 12px 0; }
+  .post:first-child { border-top: 0; }
+  .post .meta { font-size: .8rem; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+  .post .text { margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
+  .status { min-height: 1.4em; font-size: .9rem; }
+  .status.err { color: var(--bad); }
+  .status.ok { color: var(--ok); }
+  footer { margin-top: 32px; text-align: center; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Agent<span class="gold">Wall</span></h1>
+    <p>Dinding pesan on-chain di BNB Chain. Semua orang boleh membaca — hanya pemegang <strong>Agent ID</strong> yang boleh menulis.</p>
+  </header>
+
+  <!-- Wallet / identity status -->
+  <section class="card">
+    <div class="row" style="margin-top:0">
+      <div>
+        <div class="muted">Dompet kamu</div>
+        <div class="addr" id="walletAddr">Belum terhubung</div>
+        <div style="margin-top:6px"><span class="badge bad" id="holderBadge">Agent ID: belum dicek</span></div>
+      </div>
+      <button id="connectBtn">Hubungkan Dompet</button>
+    </div>
+    <div class="status" id="connectStatus"></div>
+  </section>
+
+  <!-- Write -->
+  <section class="card">
+    <label for="msgText"><strong>Tulis pesan</strong> <span class="muted">(maks. 280 byte)</span></label>
+    <textarea id="msgText" maxlength="280" placeholder="Tulis pesanmu di dinding…"></textarea>
+    <div class="row">
+      <span class="muted"><span id="charCount">0</span>/280</span>
+      <button id="postBtn" disabled>Kirim ke Wall</button>
+    </div>
+    <div class="status" id="postStatus"></div>
+  </section>
+
+  <!-- Read -->
+  <section class="card">
+    <div class="row" style="margin-top:0">
+      <strong>Pesan terbaru</strong>
+      <button class="secondary" id="refreshBtn">Muat Ulang</button>
+    </div>
+    <div class="status" id="feedStatus"></div>
+    <div id="feed"></div>
+  </section>
+
+  <footer>
+    <p><strong>Catatan risiko:</strong> Pesan bersifat publik dan permanen di blockchain. Jangan tulis data pribadi.</p>
+    <p>AgentWall — dibangun untuk Agent ID Hackathon (Binance Wallet × BNB Chain).</p>
+  </footer>
+</div>
+
+<!-- ethers.js v6 via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   CONFIG — set these before going live
+   ============================================================ */
+const CONFIG = {
+  // Agent ID contract on BNB Chain mainnet (SPACE ID Agent ID, ERC-721).
+  AGENT_ID_ADDRESS: "0x60b9262456de011f7d15a54cdd8c48baaa8b022f",
+  // AgentWall deployed on BNB Chain mainnet 2026-11-19 (tx 0x82e28435a59b69ab2f554eb0a88ea3bea4511cd2e4548e1131f185055d94d186).
+  WALL_ADDRESS: "0xbfc5708d2b0aa441715729d2fa269e51908925bd",
+  // Public BSC RPC, used for reads (holder check + reading the wall).
+  BSC_RPC_URL: "https://bsc-dataseed.binance.org",
+  BSC_CHAIN_ID: 56,
+  PAGE_SIZE: 20,
+};
+
+/* Minimal ABIs — only the functions this page calls. */
+const ERC721_ABI = ["function balanceOf(address owner) view returns (uint256)"];
+const WALL_ABI = [
+  "function postMessage(string text)",
+  "function postCount() view returns (uint256)",
+  "function getPosts(uint256 offset, uint256 limit) view returns (tuple(address author, string text, uint256 timestamp)[])",
+];
+
+/* Read-only provider for all public reads (no wallet needed). */
+const readProvider = new ethers.JsonRpcProvider(CONFIG.BSC_RPC_URL);
+const agentIdRead = new ethers.Contract(CONFIG.AGENT_ID_ADDRESS, ERC721_ABI, readProvider);
+const wallRead = new ethers.Contract(CONFIG.WALL_ADDRESS, WALL_ABI, readProvider);
+
+let signer = null;
+let account = null;
+let isHolder = false;
+
+const $ = (id) => document.getElementById(id);
+
+function setStatus(el, msg, kind) {
+  el.textContent = msg || "";
+  el.className = "status" + (kind ? " " + kind : "");
+}
+
+function shortAddr(a) {
+  return a ? a.slice(0, 6) + "…" + a.slice(-4) : "";
+}
+
+/* ---------- Wallet connection (standard window.ethereum flow) ---------- */
+async function connectWallet() {
+  const status = $("connectStatus");
+  try {
+    if (!window.ethereum) {
+      setStatus(status, "Dompet tidak ditemukan. Pasang MetaMask atau buka halaman ini dari dompet Binance/MetaMask.", "err");
+      return;
+    }
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+
+    // Make sure we are on BNB Chain before doing anything else.
+    const network = await provider.getNetwork();
+    if (Number(network.chainId) !== CONFIG.BSC_CHAIN_ID) {
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x" + CONFIG.BSC_CHAIN_ID.toString(16) }],
+        });
+      } catch (e) {
+        setStatus(status, "Pindah ke jaringan BNB Chain (BSC) dulu, lalu coba lagi.", "err");
+        return;
+      }
+    }
+
+    signer = await provider.getSigner();
+    account = await signer.getAddress();
+    $("walletAddr").textContent = account;
+    $("connectBtn").textContent = "Terhubung";
+    setStatus(status, "Dompet terhubung.", "ok");
+    await refreshHolderStatus();
+  } catch (e) {
+    setStatus(status, "Gagal menghubungkan dompet: " + (e.shortMessage || e.message), "err");
+  }
+}
+
+/* ---------- Agent ID holder check (read-only) ---------- */
+async function refreshHolderStatus() {
+  const badge = $("holderBadge");
+  if (!account) return;
+  try {
+    const bal = await agentIdRead.balanceOf(account);
+    isHolder = bal > 0n;
+    badge.textContent = isHolder
+      ? "Agent ID: TERDETEKSI ✓ — kamu boleh menulis"
+      : "Agent ID: TIDAK ADA — dompet ini tidak bisa menulis";
+    badge.className = "badge " + (isHolder ? "ok" : "bad");
+    $("postBtn").disabled = !isHolder;
+  } catch (e) {
+    badge.textContent = "Agent ID: gagal dicek";
+    badge.className = "badge bad";
+  }
+}
+
+/* ---------- Reading the wall (latest PAGE_SIZE posts, newest first) ---------- */
+async function loadFeed() {
+  const feed = $("feed");
+  const status = $("feedStatus");
+  try {
+    if (CONFIG.WALL_ADDRESS === "0x0000000000000000000000000000000000000000") {
+      setStatus(status, "Kontrak wall belum di-deploy (alamat masih placeholder).", "err");
+      feed.innerHTML = "";
+      return;
+    }
+    setStatus(status, "Memuat pesan…");
+    const total = Number(await wallRead.postCount());
+    if (total === 0) {
+      setStatus(status, "");
+      feed.innerHTML = '<p class="muted">Belum ada pesan. Jadilah pemegang Agent ID pertama yang menulis!</p>';
+      return;
+    }
+    const from = Math.max(0, total - CONFIG.PAGE_SIZE);
+    const posts = await wallRead.getPosts(from, CONFIG.PAGE_SIZE);
+    setStatus(status, total + " pesan di dinding — menampilkan " + posts.length + " terbaru.");
+    feed.innerHTML = "";
+    // Newest first.
+    [...posts].reverse().forEach((p) => {
+      const div = document.createElement("div");
+      div.className = "post";
+      const when = new Date(Number(p.timestamp) * 1000).toLocaleString("id-ID");
+      div.innerHTML =
+        '<div class="meta"><span class="addr">' + shortAddr(p.author) + "</span><span>" + when + "</span></div>" +
+        '<div class="text"></div>';
+      div.querySelector(".text").textContent = p.text; // textContent = no HTML injection
+      feed.appendChild(div);
+    });
+  } catch (e) {
+    setStatus(status, "Gagal memuat pesan: " + (e.shortMessage || e.message), "err");
+  }
+}
+
+/* ---------- Writing to the wall ---------- */
+async function postMessage() {
+  const status = $("postStatus");
+  const text = $("msgText").value.trim();
+  if (!signer) { setStatus(status, "Hubungkan dompet dulu.", "err"); return; }
+  if (!isHolder) { setStatus(status, "Dompet ini tidak memegang Agent ID.", "err"); return; }
+  if (!text) { setStatus(status, "Pesan tidak boleh kosong.", "err"); return; }
+  try {
+    $("postBtn").disabled = true;
+    setStatus(status, "Menunggu konfirmasi di dompetmu…");
+    const wallWrite = new ethers.Contract(CONFIG.WALL_ADDRESS, WALL_ABI, signer);
+    const tx = await wallWrite.postMessage(text);
+    setStatus(status, "Transaksi terkirim, menunggu konfirmasi… " + tx.hash);
+    await tx.wait();
+    setStatus(status, "Pesanmu sudah abadi di dinding! ✓", "ok");
+    $("msgText").value = "";
+    $("charCount").textContent = "0";
+    await loadFeed();
+  } catch (e) {
+    setStatus(status, "Gagal mengirim: " + (e.shortMessage || e.message), "err");
+  } finally {
+    $("postBtn").disabled = !isHolder;
+  }
+}
+
+/* ---------- Wire up ---------- */
+$("connectBtn").addEventListener("click", connectWallet);
+$("postBtn").addEventListener("click", postMessage);
+$("refreshBtn").addEventListener("click", loadFeed);
+$("msgText").addEventListener("input", (e) => { $("charCount").textContent = e.target.value.length; });
+if (window.ethereum) {
+  window.ethereum.on("accountsChanged", () => location.reload());
+}
+loadFeed();
+</script>
+</body>
+</html>
