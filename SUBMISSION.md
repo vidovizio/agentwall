@@ -24,9 +24,11 @@ deterministic deployment proxy; deploy tx
 block 134446504, receipt status success. On-chain checks after deploy:
 `agentId()` = the Agent ID contract below, `postCount()` = 0,
 `isHolder(cebonk)` = true, `isHolder(non-holder)` = false.
-Source verification: DONE on Sourcify — exact match (creation + runtime),
-matchId 59508305, verified 2026-11-19. BscScan's own badge still TODO:
-its API requires an API key we do not hold.
+Source verification: DONE on BscScan — "Pass - Verified" via Etherscan
+API V2 (GUID i3xqqvrsdqhswzbw1rzrbk932fxkdxsf81yfhma5iarwvrjn4t,
+2026-11-19); `getsourcecode` confirms ContractName "AgentWall",
+compiler v0.8.20+commit.a1b79de6, source present. Also DONE on
+Sourcify — exact match (creation + runtime), matchId 59508305.
 
 Agent ID contract used (not ours, for reference):
 `0x60b9262456de011f7d15a54cdd8c48baaa8b022f` (SPACE ID Agent ID).
